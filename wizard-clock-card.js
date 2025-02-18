@@ -1,7 +1,7 @@
 const CARDNAME = "wizard-clock-card";
-const VERSION = "0.8.0-b1";
+const VERSION = "0.8.0-b2";
 
-const debugLogging = true;
+const debugLogging = false;
 
 class WizardClockCard extends HTMLElement {
 
@@ -18,13 +18,13 @@ class WizardClockCard extends HTMLElement {
       if (debugLogging) console.log(`${this.config.header ? "(" + this.config.header + ") " : ""}skipping update`);
       return;
     }
-
-    this.availableWidth = Math.min(this.availableWidth, this.configuredWidth);
+    this.availableWidth = Math.round(Math.min(this.availableWidth, this.configuredWidth));
 
     this.canvas.width = this.configuredWidth;
     this.canvas.height = this.configuredWidth;
     this.canvas.style.width = `${this.availableWidth}px`;
     this.canvas.style.height = `${this.availableWidth}px`;
+    this.scaleRatio = this.configuredWidth / this.availableWidth;
 
     this.radius = this.canvas.height / 2;
     this.ctx.translate(this.radius, this.radius);
@@ -56,9 +56,6 @@ class WizardClockCard extends HTMLElement {
     }
 
     for (num = 0; num < this.config.wizards.length; num++){
-      if (!this._hass.states[this.config.wizards[num].entity])
-        throw new Error("Unable to find state for entity " + this.config.wizards[num].entity);
-
       var stateStr = this.getWizardState(this.config.wizards[num].entity);
       if (debugLogging) {
         console.log(`${this.config.header ? "(" + this.config.header + ") " : ""}(${this.config.wizards[num].name}) set hass stateStr: ${stateStr}`);
@@ -84,7 +81,7 @@ class WizardClockCard extends HTMLElement {
     if (debugLogging) console.log(`${this.config.header ? "(" + this.config.header + ") " : ""}set hass end`);
   }
 
-  // Called when the configuration changes.
+  // setConfig is called when the configuration changes.
   // Throw an exception and Home Assistant will render an error card.
   setConfig(config) {
     console.info("%c %s %c %s",
@@ -151,15 +148,18 @@ class WizardClockCard extends HTMLElement {
       this.div.appendChild(this.canvas);
       this.card.appendChild(this.div);
       this.appendChild(this.card);
+      if (!this.canvas.getContext)
+        throw new Error("Browser does not support " + CARDNAME + " canvas.");
       this.ctx = this.canvas.getContext("2d");
 
+      /* watch for changes in the size of the card */
       const observer = createResizeObserver(this);
       observer.observe(this.card);
     }
     if (debugLogging) console.log(`${this.config.header ? "(" + this.config.header + ") " : ""}getConfig end`);
   }
 
-  // Indicate the height of the card in 50px units. 
+  // getCardSize Indicates the height of the card in 50px units. 
   // Home Assistant uses this to automatically distribute all cards over the available columns.
   getCardSize() {
     var cardSize = (this.configuredWidth / 50).toFixed(1);
@@ -167,9 +167,13 @@ class WizardClockCard extends HTMLElement {
     return cardSize;
   }
 
-  // Make all decisions about what stateStr should be. (What "number" to piont to.)
+  // get-WizardState makes all decisions about what stateStr should be. (What "number" to point to.)
   getWizardState(entity) {
     const state = this._hass.states[entity];
+    if (!state) {
+      console.log(`${this.config.header ? "(" + this.config.header + ") " : ""}Wizard ${entity} does not exist.`);
+      return this.lostState;
+    }
     const stateVelo = state && state.attributes ? (
       state.attributes.velocity ? state.attributes.velocity : (
         state.attributes.speed ? state.attributes.speed : (
@@ -436,7 +440,7 @@ let resizeTimeout = false;
 let resizeDelay = 500;
 
 function debouncedOnResize(thisObject) {
-  console.log(`${thisObject.config && thisObject.config.header ? "(" + thisObject.config.header + ") " : ""}debouncedOnResize triggering set hass`);
+  if (debugLogging) console.log(`${thisObject.config && thisObject.config.header ? "(" + thisObject.config.header + ") " : ""}debouncedOnResize triggering set hass`);
   /* trigger an update */
   thisObject.hass = thisObject._hass;
 }
