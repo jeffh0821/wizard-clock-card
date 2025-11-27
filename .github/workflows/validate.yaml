@@ -15,3 +15,26 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: "plugin"
+
+  validate-version:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check version consistency
+        run: |
+          # Extract version from repo.json
+          REPO_VERSION=$(jq -r '.wizardclock.version' repo.json)
+          
+          # Extract version from wizard-clock-card.js
+          JS_VERSION=$(grep 'var VERSION = ' wizard-clock-card.js | cut -d'"' -f2)
+          
+          # Compare versions
+          if [ "$REPO_VERSION" != "$JS_VERSION" ]; then
+            echo "Version mismatch!"
+            echo "repo.json version: $REPO_VERSION"
+            echo "wizard-clock-card.js version: $JS_VERSION"
+            exit 1
+          fi
+          
+          echo "Versions match: $REPO_VERSION"

@@ -357,13 +357,43 @@ class WizardClockCard extends HTMLElement {
       var num;
       for (num = 0; num < wizards.length; num++){
         const state = this._hass.states[wizards[num].entity];
-        var stateStr = this.getWizardState(wizards[num].entity);
+        var stateStr = state && state.state != "off" && state.state != "unknown" ? 
+          (state.attributes ? 
+            (state.attributes.message ? state.attributes.message : state.state) 
+            : state.state
+          )
+          :  this.lostState;
+        /* Point to locality if not in a zone (if locality is geocoded) */
+        if (stateStr === 'Away') {
+          if (state.attributes.locality) {
+            stateStr = state.attributes.locality
+          }
+        }
+	
+        if (this.exclude.includes(stateStr) ||
+	  (this._hass.states["zone." + stateStr] && this._hass.states["zone." + stateStr].attributes && this._hass.states["zone." + stateStr].attributes.friendly_name &&
+          this.exclude.includes(this._hass.states["zone." + stateStr].attributes.friendly_name))) {
+
+          stateStr = this.lostState;
+	}
+        // Check both velocity and proximity for movement
+        const stateVelo = state && state.attributes ? (
+          state.attributes.velocity ? state.attributes.velocity : (
+            state.attributes.moving ? 16 : 0
+          )) : 0;
+
+        // New: Check proximity direction sensor if configured
+        const isMovingByProximity = wizards[num].proximity_sensor &&
+          this._hass.states[wizards[num].proximity_sensor] &&
+          ['towards', 'away_from'].includes(this._hass.states[wizards[num].proximity_sensor].state);
 
         var locnum;
         var wizardOffset = ((num-((wizards.length-1)/2)) / wizards.length * 0.6);
         var location = wizardOffset; // default
         for (locnum = 0; locnum < locations.length; locnum++){
-          if ((locations[locnum].toLowerCase() == stateStr.toLowerCase()) )
+          if ((locations[locnum].toLowerCase() == stateStr.toLowerCase()) 
+            || (locations[locnum] == this.travellingState && (stateVelo > 15 || isMovingByProximity))
+            || (locations[locnum] == this.lostState && stateStr == "not_home" && stateVelo <= 15 && !isMovingByProximity))
           {
             location = locnum + wizardOffset;
             break;

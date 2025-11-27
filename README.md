@@ -14,7 +14,7 @@ I decided to make it public so that other (more skillful) people could make use 
 
 * Shows the friendly name of the current Zone that a person/entity is located in 
 * If a person/entity isn't in a Zone then it marks that entity as "Lost" (can be customised)
-* If an entity has a velocity of greater than 15 then it marks that entity as "Travelling" (only tested using owntracks - and GPS must be turned on on your phone for velocity to be reported)
+* If an entity has a velocity of greater than 15 or their proximity direction sensor shows movement, it marks that entity as "Travelling" (supports both owntracks velocity and Home Assistant proximity integration)
 * Locations are added dynamically as needed, however you can configure permanently shown locations by adding them to the "locations" list in the config
 * For family members without a phone (or those that don't want to be tracked with owntracks!) it can use the google calendar platform - simply create a calendar with the expected locations of that person as the name of appointments at the appropriate times
 * Font face can be customised (I use "Blackadder" for a suitably wizardy look)
@@ -73,6 +73,7 @@ min_location_slots: 5
 wizards:
   - entity: device_tracker.harrys_phone
     name: Harry
+    proximity_sensor: sensor.home_harry_direction_of_travel
     colour: '#F00'
     textcolour: '#00F'
   - entity: device_tracker.hermiones_phone
