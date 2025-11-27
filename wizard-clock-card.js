@@ -1,5 +1,5 @@
 const CARDNAME = "wizard-clock-card";
-const VERSION = "0.8.0-b2";
+const VERSION = "0.9.0";
 
 const debugLogging = false;
 
