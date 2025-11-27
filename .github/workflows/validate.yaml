@@ -27,7 +27,7 @@ jobs:
           REPO_VERSION=$(jq -r '.wizardclock.version' repo.json)
           
           # Extract version from wizard-clock-card.js
-          JS_VERSION=$(grep 'var VERSION = ' wizard-clock-card.js | cut -d'"' -f2)
+          JS_VERSION=$(grep 'const VERSION = ' wizard-clock-card.js | cut -d'"' -f2)
           
           # Compare versions
           if [ "$REPO_VERSION" != "$JS_VERSION" ]; then
