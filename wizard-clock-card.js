@@ -423,70 +423,109 @@ class WizardClockCard extends HTMLElement {
   }
 
   drawNumbers(ctx, radius, locations) {
-      const zones = this.zoneLayout || locations.map(loc => ({ lines: [loc], fontSize: radius*0.15*this.fontScale, lineHeight: 20 }));
-      const totalZones = zones.length;
-      const lineSpacingPx = (zones[0].lineHeight || 20) * 0.2;
-
-      // Set text styling (missing in initial rewrite)
-      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--primary-text-color');
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      for (let i = 0; i < totalZones; i++) {
-          const ang = i * Math.PI / totalZones * 2;
+      /* 
+        Text on a curve code modified from function written by James Alford here: http://blog.graphicsgen.com/2015/03/html5-canvas-rounded-text.html
+        Supports multi-line zone labels via precomputed zoneLayout.
+      */
+      var ang;
+      var num;
+      
+      // Base font size from config, but we'll override per-zone with layout if available
+      const zones = this.zoneLayout || null;
+      const hasLayout = !!zones;
+      
+      for(num = 0; num < locations.length; num++){
+          ang = num * Math.PI / locations.length * 2;
+          
+          // Determine font and line(s) for this zone
+          let zoneFontSize = radius*0.15*this.fontScale;
+          let zoneLines = [locations[num]];
+          let lineHeight = 0;
+          
+          if (hasLayout && zones[num]) {
+            zoneFontSize = zones[num].fontSize;
+            zoneLines = zones[num].lines;
+            lineHeight = zones[num].lineHeight;
+          }
+          
+          // Set font for this zone (may differ per zone if layout computed)
+          ctx.font = zoneFontSize + "px " + this.selectedFont;
+          ctx.textBaseline="middle";
+          ctx.textAlign="center";
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--primary-text-color');
+          
+          // rotate to center of drawing position
           ctx.rotate(ang);
 
-          const zone = zones[i];
-          const inwardFacing = !(ang > Math.PI/2 && ang < (Math.PI*2 - Math.PI/2));
-
-          // Draw each line (support for word-wrap)
-          for (let lineIdx = 0; lineIdx < zone.lines.length; lineIdx++) {
-              const line = zone.lines[lineIdx];
-              const fontSize = zone.fontSize;
-              ctx.font = `${fontSize}px ${this.selectedFont}`;
-              const lineHeight = zone.lineHeight;
-              // Compute effective radius for this line: outer = radius, inner = radius - (lineHeight + spacing)*lineIdx
-              const drawRadius = radius - (lineHeight + lineSpacingPx) * lineIdx;
-              if (drawRadius <= lineHeight) break; // too small, skip
-
-              // Prepare text (orientation and RTL)
-              let text = line;
-              if (inwardFacing) {
-                text = text.split('').reverse().join('');
+          var startAngle = 0; 
+          var inwardFacing = true;
+          var kerning = 0; 
+          
+          // Process each line (support for word-wrap)
+          for (var lineIdx = 0; lineIdx < zoneLines.length; lineIdx++) {
+            var lineText = zoneLines[lineIdx];
+            if (lineIdx === 0) {
+              // First line: use original orientation and splitting
+              var text = lineText.split("").reverse().join("");
+              if (ang > Math.PI / 2 && ang < ((Math.PI * 2) - (Math.PI / 2))) {
+                startAngle = Math.PI;
+                inwardFacing = false;
+                text = lineText;
               }
+              text = this.isRtlLanguage(text) ? text.split("").reverse().join("") : text;
+            } else {
+              // Additional lines: same orientation as first
+              text = inwardFacing ? lineText.split("").reverse().join("") : lineText;
               if (this.isRtlLanguage(text)) {
-                text = text.split('').reverse().join('');
+                text = text.split("").reverse().join("");
               }
+            }
 
-              const denom = drawRadius - lineHeight; // radius at which text sits
-              // Compute total angle for centering
-              let totalLineAngle = 0;
-              const chars = text.split('');
-              for (let j = 0; j < chars.length; j++) {
-                totalLineAngle += ctx.measureText(chars[j]).width / denom;
-              }
+            // Determine textHeight for this line at this font size
+            var div = document.createElement("div");
+            div.innerHTML = text;
+            div.style.position = 'absolute';
+            div.style.top = '-10000px';
+            div.style.left = '-10000px';
+            div.style.fontFamily = this.selectedFont;
+            div.style.fontSize = zoneFontSize + "px";
+            document.body.appendChild(div);
+            var textHeight = div.offsetHeight;
+            document.body.removeChild(div);
+            
+            // Compute radial offset for this line: inner lines move inward
+            var lineRadius = radius;
+            if (lineIdx > 0 && lineHeight > 0) {
+              var lineSpacing = lineHeight * 0.2;
+              lineRadius = radius - (lineHeight + lineSpacing) * lineIdx;
+              if (lineRadius <= lineHeight) break; // too small, skip
+            }
 
-              // Base start angle offset based on inwardFacing (same as original)
-              let startAngle = inwardFacing ? 0 : Math.PI;
-              // Add half total to center
-              startAngle += totalLineAngle / 2;
+            // rotate 50% of total angle for center alignment
+            var lineStartAngle = startAngle;
+            for (var j = 0; j < text.length; j++) {
+                var charWid = ctx.measureText(text[j]).width;
+                lineStartAngle += ((charWid + (j == text.length-1 ? 0 : kerning)) / (lineRadius - textHeight)) / 2 ;
+            }
 
-              ctx.rotate(startAngle);
+            // Phew... now rotate into final start position
+            ctx.rotate(lineStartAngle);
 
-              // Draw each character
-              for (let j = 0; j < chars.length; j++) {
-                const char = chars[j];
-                const charWid = ctx.measureText(char).width;
-                const halfCharAngle = (charWid / 2) / denom;
-                ctx.rotate(-halfCharAngle);
-                ctx.fillText(char, 0, inwardFacing ? -denom : denom);
-                ctx.rotate(-((charWid / 2) / denom)); // no kerning
-              }
-
-              ctx.rotate(startAngle); // unwind back to zone angle
+            // Now for the fun bit: draw, rotate, and repeat
+            for (var j = 0; j < text.length; j++) {
+                var charWid = ctx.measureText(text[j]).width;
+                // rotate half letter
+                ctx.rotate((charWid/2) / (lineRadius - textHeight) * -1); 
+                // draw the character at "top" or "bottom" depending on inward or outward facing
+                ctx.fillText(text[j], 0, (inwardFacing ? 1 : -1) * (0 - lineRadius + textHeight ));
+                ctx.rotate((charWid/2 + kerning) / (lineRadius - textHeight) * -1); // rotate half letter
+            }
+            // rotate back round from the end position to the central position of the text
+            ctx.rotate(lineStartAngle);
           }
 
-          ctx.rotate(-ang); // unwind zone rotation
+          // rotate to the next location
+          ctx.rotate(-ang);
       }
   }
 
