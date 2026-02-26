@@ -427,6 +427,11 @@ class WizardClockCard extends HTMLElement {
       const totalZones = zones.length;
       const lineSpacingPx = (zones[0].lineHeight || 20) * 0.2;
 
+      // Set text styling (missing in initial rewrite)
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--primary-text-color');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
       for (let i = 0; i < totalZones; i++) {
           const ang = i * Math.PI / totalZones * 2;
           ctx.rotate(ang);
